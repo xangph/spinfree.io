@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <title>🔧 หน้าจัดการรางวัล (แอดมิน)</title>
+  <style>
+    body { font-family: Tahoma, sans-serif; background: #fff8dc; padding: 20px; text-align: center; }
+    table { width: 100%; max-width: 800px; margin: 0 auto; border-collapse: collapse; }
+    th, td { border: 1px solid #daa520; padding: 8px; }
+    input { padding: 5px; width: 90%; }
+    button {
+      margin: 10px 5px; padding: 10px 20px;
+      border: none; border-radius: 10px;
+      background: #ffd700; color: #b8860b; font-weight: bold;
+    }
+    .deleteRowBtn { background: #f55; color: white; }
+    ul { text-align: left; max-width: 800px; margin: 20px auto; }
+    #loginBox {
+      background: #fff;
+      border: 2px solid #daa520;
+      padding: 20px;
+      border-radius: 15px;
+      max-width: 300px;
+      margin: 100px auto;
+      box-shadow: 0 0 20px #daa520;
+    }
+    #adminContent { display: none; }
+  </style>
+</head>
+<body>
+
+<div id="loginBox">
+  <h2>🔒 เข้าสู่ระบบแอดมิน</h2>
+  <input type="password" id="adminPassword" placeholder="รหัสผ่านแอดมิน" />
+  <br><br>
+  <button onclick="checkPassword()">เข้าสู่ระบบ</button>
+</div>
+
+<div id="adminContent">
+  <h2>🔧 แอดมิน - ตั้งค่ารางวัล</h2>
+  <table id="prizesTable">
+    <thead>
+      <tr><th>ชื่อรางวัล</th><th>ผู้รับ</th><th>วันที่ปล่อย</th><th>ลบ</th></tr>
+    </thead>
+    <tbody></tbody>
+  </table>
+  <button id="addPrizeRowBtn">➕ เพิ่ม</button>
+  <button id="savePrizesBtn">💾 บันทึก</button>
+
+  <h3>🎯 รางวัลที่ปล่อยแล้ว</h3>
+  <ul id="releasedLinks"></ul>
+</div>
+
+<script>
+  const ADMIN_PASSWORD = "111"; // <== เปลี่ยนรหัสผ่านตรงนี้ได้
+
+  function checkPassword() {
+    const input = document.getElementById("adminPassword").value;
+    if (input === ADMIN_PASSWORD) {
+      document.getElementById("loginBox").style.display = "none";
+      document.getElementById("adminContent").style.display = "block";
+    } else {
+      alert("รหัสผ่านไม่ถูกต้อง!");
+    }
+  }
+
+  // ----- ระบบจัดการรางวัล -----
+  let prizes = JSON.parse(localStorage.getItem("prizes")) || [];
+  const tbody = document.querySelector("#prizesTable tbody");
+
+  function addPrizeRow(prize = "", winner = "", releaseDate = "") {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td><input value="${prize}"></td>
+      <td><input value="${winner}"></td>
+      <td><input type="date" value="${releaseDate}"></td>
+      <td><button class="deleteRowBtn">❌</button></td>
+    `;
+    row.querySelector(".deleteRowBtn").onclick = () => row.remove();
+    tbody.appendChild(row);
+  }
+
+  document.getElementById("addPrizeRowBtn").onclick = () => addPrizeRow();
+
+  document.getElementById("savePrizesBtn").onclick = () => {
+    const rows = tbody.querySelectorAll("tr");
+    const updated = [];
+    for (const r of rows) {
+      const i = r.querySelectorAll("input");
+      if (!i[0].value || !i[1].value || !i[2].value) return alert("กรอกข้อมูลให้ครบ");
+      updated.push({ prize: i[0].value, winner: i[1].value, releaseDate: i[2].value, claimed: false });
+    }
+    prizes = updated;
+    localStorage.setItem("prizes", JSON.stringify(prizes));
+    alert("✅ บันทึกสำเร็จ!");
+    updateLinks();
+  };
+
+  function updateLinks() {
+    const ul = document.getElementById("releasedLinks");
+    ul.innerHTML = "";
+    const today = new Date().toISOString().slice(0, 10);
+    prizes.forEach(p => {
+      if (p.releaseDate <= today) {
+        const li = document.createElement("li");
+        li.innerHTML = `<a href="index.html?user=${encodeURIComponent(p.winner)}&prize=${encodeURIComponent(p.prize)}" target="_blank">🎁 ${p.prize} - ${p.winner}</a>`;
+        ul.appendChild(li);
+      }
+    });
+  }
+
+  // โหลดรางวัลเมื่อโหลดหน้า (แต่อย่าทำให้เห็นจนกว่าจะใส่รหัส)
+  prizes.forEach(p => addPrizeRow(p.prize, p.winner, p.releaseDate));
+</script>
+</body>
+</html>
