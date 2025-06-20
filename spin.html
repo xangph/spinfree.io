@@ -2,115 +2,206 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8" />
-  <title>🔧 หน้าจัดการรางวัล (แอดมิน)</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>🎯 เกมหมุนวงล้อโชคดี</title>
   <style>
-    body { font-family: Tahoma, sans-serif; background: #fff8dc; padding: 20px; text-align: center; }
-    table { width: 100%; max-width: 800px; margin: 0 auto; border-collapse: collapse; }
-    th, td { border: 1px solid #daa520; padding: 8px; }
-    input { padding: 5px; width: 90%; }
-    button {
-      margin: 10px 5px; padding: 10px 20px;
-      border: none; border-radius: 10px;
-      background: #ffd700; color: #b8860b; font-weight: bold;
+    body {
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      background: #fff8dc;
+      color: #b8860b;
+      text-align: center;
+      padding: 10px;
     }
-    .deleteRowBtn { background: #f55; color: white; }
-    ul { text-align: left; max-width: 800px; margin: 20px auto; }
-    #loginBox {
-      background: #fff;
-      border: 2px solid #daa520;
-      padding: 20px;
-      border-radius: 15px;
-      max-width: 300px;
-      margin: 100px auto;
-      box-shadow: 0 0 20px #daa520;
+    h1 { font-size: 2.5rem; margin-bottom: 20px; color: #daa520; }
+    input, button {
+      font-size: 1.2rem; padding: 10px 15px; margin: 5px;
+      border-radius: 12px; border: 2px solid #daa520;
+      background: #fff; color: #b8860b; font-weight: bold;
+      cursor: pointer; box-shadow: 1px 1px 3px #ffd700;
     }
-    #adminContent { display: none; }
+    button:hover {
+      background: #ffd700; color: #fff; box-shadow: 0 0 15px #ffdf00;
+    }
+    #gameSection p, #gameSection ul { font-weight: bold; }
+    canvas {
+      border-radius: 50%; box-shadow: 0 0 25px #daa520;
+      margin: 20px auto; display: block;
+      background: linear-gradient(45deg, #fff7b1, #f9e79f);
+    }
+    #popup {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0, 0, 0, 0.6); display: none;
+      justify-content: center; align-items: center;
+    }
+    #popupContent {
+      background: #fff8dc; padding: 20px 30px;
+      border-radius: 15px; box-shadow: 0 0 20px #daa520;
+      font-size: 1.5rem; color: #b8860b;
+    }
   </style>
 </head>
 <body>
+  <h1>🎉 เกมหมุนวงล้อโชคดี</h1>
 
-<div id="loginBox">
-  <h2>🔒 เข้าสู่ระบบแอดมิน</h2>
-  <input type="password" id="adminPassword" placeholder="รหัสผ่านแอดมิน" />
-  <br><br>
-  <button onclick="checkPassword()">เข้าสู่ระบบ</button>
-</div>
+  <section id="loginSection">
+    <input type="text" id="username" placeholder="ใส่ชื่อของคุณ" />
+    <button id="startGame">เริ่มเล่น</button>
+   
+  </section>
 
-<div id="adminContent">
-  <h2>🔧 แอดมิน - ตั้งค่ารางวัล</h2>
-  <table id="prizesTable">
-    <thead>
-      <tr><th>ชื่อรางวัล</th><th>ผู้รับ</th><th>วันที่ปล่อย</th><th>ลบ</th></tr>
-    </thead>
-    <tbody></tbody>
-  </table>
-  <button id="addPrizeRowBtn">➕ เพิ่ม</button>
-  <button id="savePrizesBtn">💾 บันทึก</button>
+  <section id="gameSection" style="display: none;">
+    <p>👤 ผู้เล่น: <strong id="playerName"></strong></p>
+    <p>🌀 หมุนได้อีก: <strong id="spinsLeft">1</strong> ครั้ง</p>
+    <canvas id="wheelCanvas" width="500" height="500"></canvas>
+    <button id="spinButton">🎯 หมุน!</button>
+    <div id="result"></div>
+    <h3>📜 ประวัติการหมุน</h3>
+    <ul id="history"></ul>
+  </section>
 
-  <h3>🎯 รางวัลที่ปล่อยแล้ว</h3>
-  <ul id="releasedLinks"></ul>
-</div>
+  <div id="popup">
+    <div id="popupContent">
+      <p id="popupText"></p>
+      <button onclick="popup.style.display='none'">ตกลง</button>
+    </div>
+  </div>
+
+  <audio id="spinSound" src="spin.mp3"></audio>
+  <audio id="winSound" src="win.mp3"></audio>
+  <audio id="limitSound" src="limit.mp3"></audio>
 
 <script>
-  const ADMIN_PASSWORD = "111"; // <== เปลี่ยนรหัสผ่านตรงนี้ได้
-
-  function checkPassword() {
-    const input = document.getElementById("adminPassword").value;
-    if (input === ADMIN_PASSWORD) {
-      document.getElementById("loginBox").style.display = "none";
-      document.getElementById("adminContent").style.display = "block";
-    } else {
-      alert("รหัสผ่านไม่ถูกต้อง!");
-    }
-  }
-
-  // ----- ระบบจัดการรางวัล -----
   let prizes = JSON.parse(localStorage.getItem("prizes")) || [];
-  const tbody = document.querySelector("#prizesTable tbody");
+  let currentUser = null, spinsLeft = 0, currentAngle = 0, isSpinning = false;
 
-  function addPrizeRow(prize = "", winner = "", releaseDate = "") {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td><input value="${prize}"></td>
-      <td><input value="${winner}"></td>
-      <td><input type="date" value="${releaseDate}"></td>
-      <td><button class="deleteRowBtn">❌</button></td>
-    `;
-    row.querySelector(".deleteRowBtn").onclick = () => row.remove();
-    tbody.appendChild(row);
-  }
+  const playerNameDisplay = document.getElementById("playerName");
+  const spinsLeftDisplay = document.getElementById("spinsLeft");
+  const spinButton = document.getElementById("spinButton");
+  const resultDisplay = document.getElementById("result");
+  const historyList = document.getElementById("history");
+  const canvas = document.getElementById("wheelCanvas");
+  const ctx = canvas.getContext("2d");
 
-  document.getElementById("addPrizeRowBtn").onclick = () => addPrizeRow();
-
-  document.getElementById("savePrizesBtn").onclick = () => {
-    const rows = tbody.querySelectorAll("tr");
-    const updated = [];
-    for (const r of rows) {
-      const i = r.querySelectorAll("input");
-      if (!i[0].value || !i[1].value || !i[2].value) return alert("กรอกข้อมูลให้ครบ");
-      updated.push({ prize: i[0].value, winner: i[1].value, releaseDate: i[2].value, claimed: false });
-    }
-    prizes = updated;
-    localStorage.setItem("prizes", JSON.stringify(prizes));
-    alert("✅ บันทึกสำเร็จ!");
-    updateLinks();
-  };
-
-  function updateLinks() {
-    const ul = document.getElementById("releasedLinks");
-    ul.innerHTML = "";
+  function drawWheel() {
+    const radius = canvas.width / 2;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
     const today = new Date().toISOString().slice(0, 10);
-    prizes.forEach(p => {
-      if (p.releaseDate <= today) {
-        const li = document.createElement("li");
-        li.innerHTML = `<a href="index.html?user=${encodeURIComponent(p.winner)}&prize=${encodeURIComponent(p.prize)}" target="_blank">🎁 ${p.prize} - ${p.winner}</a>`;
-        ul.appendChild(li);
-      }
-    });
+    const activePrizes = prizes.filter(p => p.releaseDate <= today && !p.claimed);
+    if (activePrizes.length === 0) {
+      ctx.font = "bold 20px sans-serif";
+      ctx.fillText("ยังไม่มีรางวัลปล่อยวันนี้", radius - 50, radius);
+      spinButton.disabled = true;
+      return;
+    }
+    spinButton.disabled = false;
+    const segmentAngle = 360 / activePrizes.length;
+    for (let i = 0; i < activePrizes.length; i++) {
+      const angle = (segmentAngle * i + currentAngle) * Math.PI / 180;
+      const nextAngle = (segmentAngle * (i + 1) + currentAngle) * Math.PI / 180;
+      ctx.fillStyle = i % 2 === 0 ? "#FFD700" : "#FFA500";
+      ctx.beginPath();
+      ctx.moveTo(radius, radius);
+      ctx.arc(radius, radius, radius, angle, nextAngle);
+      ctx.fill();
+      ctx.save();
+      ctx.translate(radius, radius);
+      ctx.rotate(((segmentAngle * (i + 0.5)) + currentAngle) * Math.PI / 180);
+      ctx.fillStyle = "#333";
+      ctx.textAlign = "right";
+      ctx.font = "bold 16px sans-serif";
+      ctx.fillText(activePrizes[i].prize, radius - 10, 10);
+      ctx.restore();
+    }
+    ctx.fillStyle = "red";
+    ctx.beginPath();
+    ctx.moveTo(canvas.width / 2 - 10, 10);
+    ctx.lineTo(canvas.width / 2, 0);
+    ctx.lineTo(canvas.width / 2 + 10, 10);
+    ctx.fill();
   }
 
-  // โหลดรางวัลเมื่อโหลดหน้า (แต่อย่าทำให้เห็นจนกว่าจะใส่รหัส)
-  prizes.forEach(p => addPrizeRow(p.prize, p.winner, p.releaseDate));
+  function addHistoryItem(text) {
+    const li = document.createElement("li");
+    li.textContent = text;
+    historyList.appendChild(li);
+  }
+
+  function loadHistory() {
+    const saved = JSON.parse(localStorage.getItem("history_" + currentUser) || "[]");
+    historyList.innerHTML = "";
+    saved.forEach(addHistoryItem);
+  }
+
+  function saveHistory(prize) {
+    const key = "history_" + currentUser;
+    const history = JSON.parse(localStorage.getItem(key) || "[]");
+    history.push(prize);
+    localStorage.setItem(key, JSON.stringify(history));
+  }
+
+  document.getElementById("startGame").addEventListener("click", () => {
+    const username = document.getElementById("username").value.trim();
+    if (!username) return alert("กรุณาใส่ชื่อ");
+    currentUser = username;
+    playerNameDisplay.textContent = currentUser;
+    const today = new Date().toISOString().slice(0, 10);
+    const userPrizes = prizes.filter(p => p.winner.toLowerCase() === currentUser.toLowerCase() && p.releaseDate <= today && !p.claimed);
+    if (userPrizes.length === 0) return alert("ยังไม่มีรางวัล หรือคุณได้รับไปแล้ว");
+    spinsLeft = 1;
+    spinsLeftDisplay.textContent = spinsLeft;
+    document.getElementById("loginSection").style.display = "none";
+    document.getElementById("gameSection").style.display = "block";
+    drawWheel();
+    loadHistory();
+  });
+
+  spinButton.addEventListener("click", () => {
+    if (isSpinning || spinsLeft <= 0) return;
+    const today = new Date().toISOString().slice(0, 10);
+    const available = prizes.filter(p => p.winner.toLowerCase() === currentUser.toLowerCase() && !p.claimed && p.releaseDate <= today);
+    if (available.length === 0) return;
+    isSpinning = true;
+    spinsLeft--;
+    spinsLeftDisplay.textContent = spinsLeft;
+    const index = Math.floor(Math.random() * available.length);
+    const prizeObj = available[index];
+    const segmentAngle = 360 / available.length;
+    const targetAngle = 360 * 5 - index * segmentAngle;
+    let start = null;
+    function animate(timestamp) {
+      if (!start) start = timestamp;
+      const progress = timestamp - start;
+      const t = Math.min(progress / 3000, 1);
+      currentAngle = (t * targetAngle) % 360;
+      drawWheel();
+      if (t < 1) {
+        requestAnimationFrame(animate);
+      } else {
+        isSpinning = false;
+        prizeObj.claimed = true;
+        localStorage.setItem("prizes", JSON.stringify(prizes));
+        const prize = prizeObj.prize;
+        resultDisplay.textContent = `🎉 ได้รับ: ${prize}`;
+        document.getElementById("popupText").textContent = `🎁 คุณได้รับ: ${prize}`;
+        document.getElementById("popup").style.display = "flex";
+        addHistoryItem(prize);
+        saveHistory(prize);
+      }
+    }
+    requestAnimationFrame(animate);
+  });
+
+  (function checkURLParams() {
+    const params = new URLSearchParams(window.location.search);
+    const user = params.get("user");
+    const prize = params.get("prize");
+    if (user && prize) {
+      document.getElementById("popupText").textContent = `🎁 ผู้รับ: ${user}\n🎉 รางวัล: ${prize}`;
+      document.getElementById("popup").style.display = "flex";
+    }
+  })();
+
+  drawWheel();
 </script>
 </body>
 </html>
